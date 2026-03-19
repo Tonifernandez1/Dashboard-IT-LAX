@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard IT – LAX</title>
+
+<!-- ══════════════════════════════════════════════════════
+     CONFIGURACIÓN — editá solo estas 3 líneas
+     ══════════════════════════════════════════════════════ -->
+<script>
+const CONFIG = {
+  clientId:  "3a866e3f-1eab-4ef5-b747-64b8678b1856",
+  tenantId:  "05d504a3-a540-49b5-9f79-36104ac5adce",
+  fileUrl:   "https://laxflotas-my.sharepoint.com/:x:/g/personal/afernandez_laxargentina_com/IQCS_U1PU_WGRblXN8OALttCAT1JkEkwl0Vb8QpADTbpRDs?e=3U3LPA",
+};
+</script>
+<!-- ══════════════════════════════════════════════════════ -->
+
+<script src="https://unpkg.com/@azure/msal-browser@3.10.0/lib/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f4;color:#1c1c1a;font-size:15px}
+header{background:#1F3864;color:#fff;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+header h1{font-size:17px;font-weight:600}
+.hdr-right{display:flex;align-items:center;gap:12px}
+.hdr-right span{font-size:12px;opacity:.7}
+#btn-login{height:30px;padding:0 14px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#fff;font-size:12px;cursor:pointer}
+#btn-login:hover{background:rgba(255,255,255,.25)}
+#btn-refresh{height:30px;padding:0 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:6px;color:#fff;font-size:12px;cursor:pointer;display:none}
+#btn-refresh:hover{background:rgba(255,255,255,.25)}
+.container{max-width:1200px;margin:0 auto;padding:1.5rem}
+.status-bar{background:#fff;border:1px solid #e8e7e3;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.25rem;font-size:13px;color:#888780;display:flex;align-items:center;gap:8px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#D3D1C7;flex-shrink:0}
+.status-dot.ok{background:#1D9E75}
+.status-dot.loading{background:#EF9F27;animation:pulse 1s infinite}
+.status-dot.error{background:#E24B4A}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.top{display:flex;gap:10px;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap}
+.top input{flex:1;min-width:200px;height:38px;padding:0 14px;border:1px solid #d1d0c9;border-radius:8px;font-size:14px;background:#fff;color:#1c1c1a;outline:none}
+.top input:focus{border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,.12)}
+.filter-btns{display:flex;gap:6px;flex-wrap:wrap}
+.fb{height:32px;padding:0 14px;border:1px solid #d1d0c9;border-radius:8px;font-size:12px;background:#fff;color:#5f5e5a;cursor:pointer;transition:all .15s}
+.fb:hover{background:#f0f0ee}
+.fb.active{background:#E6F1FB;color:#185FA5;border-color:#378ADD}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:1.5rem}
+.stat{background:#fff;border-radius:8px;padding:.85rem 1rem;text-align:center;border:1px solid #e8e7e3}
+.stat .n{font-size:24px;font-weight:600;color:#1F3864}
+.stat .l{font-size:12px;color:#888780;margin-top:3px}
+.section-title{font-size:12px;font-weight:600;color:#888780;margin-bottom:.75rem;border-bottom:1px solid #e8e7e3;padding-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.person-card{background:#fff;border:1px solid #e8e7e3;border-radius:12px;margin-bottom:8px;overflow:hidden;transition:box-shadow .15s}
+.person-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.person-header{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;user-select:none}
+.person-header:hover{background:#fafaf9}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;color:#2C2C2A}
+.person-name{font-size:14px;font-weight:600;color:#1c1c1a}
+.person-sub{font-size:12px;color:#888780}
+.badge-count{margin-left:auto;background:#f5f5f4;border:1px solid #e8e7e3;border-radius:8px;padding:2px 10px;font-size:12px;color:#5f5e5a}
+.chevron{font-size:10px;color:#b4b2a9;transition:transform .2s;margin-left:6px}
+.chevron.open{transform:rotate(90deg)}
+.device-list{border-top:1px solid #f0f0ee;padding:10px 16px;display:none;flex-direction:column;gap:6px}
+.device-list.open{display:flex}
+.device-row{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;background:#fafaf9;border:1px solid #f0f0ee}
+.type-badge{font-size:11px;padding:2px 9px;border-radius:6px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.device-desc{font-size:13px;color:#1c1c1a;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.device-id{font-size:11px;color:#b4b2a9;white-space:nowrap;font-family:monospace}
+.cond-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cond-label{font-size:11px;color:#888780;white-space:nowrap}
+.table-section{margin-top:2rem}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid #e8e7e3;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:10px 12px;color:#888780;font-weight:600;border-bottom:1px solid #e8e7e3;background:#fafaf9;white-space:nowrap;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+tbody tr{border-bottom:1px solid #f0f0ee}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#fafaf9}
+tbody td{padding:9px 12px;vertical-align:middle;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{text-align:center;padding:2.5rem;color:#b4b2a9;font-size:13px}
+.people-section{margin-bottom:2rem}
+.login-prompt{background:#fff;border:1px solid #e8e7e3;border-radius:12px;padding:3rem;text-align:center;color:#888780}
+.login-prompt h2{font-size:16px;font-weight:600;color:#1c1c1a;margin-bottom:.5rem}
+.login-prompt p{font-size:13px;margin-bottom:1.5rem}
+.btn-big{height:40px;padding:0 24px;background:#1F3864;border:none;border-radius:8px;color:#fff;font-size:14px;cursor:pointer;font-weight:500}
+.btn-big:hover{background:#2E75B6}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LAX — Dashboard de Activos IT</h1>
+  <div class="hdr-right">
+    <span id="hdr-count"></span>
+    <button id="btn-refresh" onclick="loadExcel()">↻ Actualizar</button>
+    <button id="btn-login" onclick="login()">Iniciar sesión</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="status-bar">
+    <span class="status-dot" id="sdot"></span>
+    <span id="status-msg">Esperando inicio de sesión...</span>
+  </div>
+
+  <div id="login-prompt" class="login-prompt">
+    <h2>Conectá tu cuenta de Microsoft</h2>
+    <p>El dashboard lee el Excel de SharePoint automáticamente.<br>Solo necesitás iniciar sesión una vez.</p>
+    <button class="btn-big" onclick="login()">Iniciar sesión con Microsoft</button>
+  </div>
+
+  <div id="main-content" style="display:none">
+    <div class="top">
+      <input type="text" id="search" placeholder="Buscar por nombre, ID o equipo..." oninput="render()">
+      <div class="filter-btns" id="fbts"></div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="people-section">
+      <div class="section-title">Equipos por persona</div>
+      <div id="people-view"></div>
+    </div>
+    <div class="table-section">
+      <div class="section-title">Tabla general — todos los activos</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:100px">ID</th><th style="width:100px">Tipo</th>
+            <th style="width:200px">Descripción</th><th style="width:180px">Responsable</th>
+            <th style="width:150px">Departamento</th><th style="width:80px">Sucursal</th>
+            <th style="width:130px">Condición</th>
+          </tr></thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── MSAL setup ──────────────────────────────────────────────────────────────
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: "https://laxflotas-my.sharepoint.com",
+  },
+  cache: { cacheLocation: "localStorage" }
+};
+const scopes = ["Files.Read.All", "Sites.Read.All"];
+let msalInstance, DATA = [];
+
+async function initMsal() {
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  await msalInstance.initialize();
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    setStatus("loading", "Sesión activa. Cargando datos...");
+    await loadExcel();
+  } else {
+    setStatus("idle", "Esperando inicio de sesión...");
+  }
+}
+
+async function login() {
+  try {
+    const resp = await msalInstance.loginPopup({ scopes });
+    if (resp) {
+      setStatus("loading", "Cargando Excel...");
+      await loadExcel();
+    }
+  } catch(e) {
+    setStatus("error", "Error al iniciar sesión: " + e.message);
+  }
+}
+
+async function getToken() {
+  const accounts = msalInstance.getAllAccounts();
+  if (!accounts.length) throw new Error("No hay sesión activa");
+  try {
+    const r = await msalInstance.acquireTokenSilent({ scopes, account: accounts[0] });
+    return r.accessToken;
+  } catch {
+    const r = await msalInstance.acquireTokenPopup({ scopes });
+    return r?.accessToken;
+  }
+}
+
+// ── Parsear URL de SharePoint → endpoint de Graph ──────────────────────────
+function parseSharePointUrl(sharedUrl) {
+  // Convierte la URL compartida al endpoint de descarga de Graph API
+  const encoded = btoa(sharedUrl).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+  return `https://graph.microsoft.com/v1.0/shares/u!${encoded}/driveItem/content`;
+}
+
+// ── Cargar y parsear el Excel ───────────────────────────────────────────────
+async function loadExcel() {
+  try {
+    setStatus("loading", "Conectando con SharePoint...");
+    document.getElementById('btn-refresh').style.display = 'inline-block';
+    document.getElementById('btn-login').style.display = 'none';
+    document.getElementById('login-prompt').style.display = 'none';
+
+    const token = await getToken();
+    const endpoint = parseSharePointUrl(CONFIG.fileUrl);
+
+    const resp = await fetch(endpoint, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+
+    const arrayBuffer = await resp.arrayBuffer();
+    const wb = XLSX.read(arrayBuffer, { type: 'array' });
+
+    DATA = [];
+    parseSheet(wb, "Inventario",  parseInventario);
+    parseSheet(wb, "Monitores",   parseMonitores);
+    parseSheet(wb, "Móviles",     parseMoviles);
+    parseSheet(wb, "Impresoras",  parseImpresoras);
+    parseSheet(wb, "Otros",       parseOtros);
+
+    const now = new Date();
+    const hora = now.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+    const fecha = now.toLocaleDateString('es-AR', {day:'2-digit', month:'short', year:'numeric'});
+    setStatus("ok", `Datos actualizados — ${fecha} ${hora} · ${DATA.length} activos`);
+    document.getElementById('hdr-count').textContent = `${DATA.length} activos`;
+    document.getElementById('main-content').style.display = 'block';
+    render();
+  } catch(e) {
+    console.error(e);
+    setStatus("error", "Error al cargar el Excel: " + e.message);
+  }
+}
+
+function c(v){ if(v===null||v===undefined)return''; const s=String(v).trim(); return['nan','none','-','—'].includes(s.toLowerCase())?'':s; }
+
+function parseSheet(wb, name, fn) {
+  if (!wb.SheetNames.includes(name)) return;
+  const ws = wb.Sheets[name];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  // Fila 2 (índice 1) es el encabezado, datos desde fila 3 (índice 2)
+  for (let i = 2; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || !r[1]) continue;
+    const item = fn(r);
+    if (item && item.id) DATA.push(item);
+  }
+}
+
+function parseInventario(r) {
+  // A=ID B=Tipo C=Marca D=Modelo H=Condición J=Responsable K=Depto L=Sucursal
+  return { id:c(r[0]), tipo:c(r[1])||'Notebook', descripcion:`${c(r[2])} ${c(r[3])}`.trim(),
+    responsable:c(r[9]), departamento:c(r[10]), sucursal:c(r[11]), condicion:c(r[7]), hoja:'Inventario' };
+}
+function parseMonitores(r) {
+  // A=ID B=Marca C=Modelo E=Responsable F=Depto G=Sucursal H=Condición
+  return { id:c(r[0]), tipo:'Monitor', descripcion:`${c(r[1])} ${c(r[2])}`.trim(),
+    responsable:c(r[4]), departamento:c(r[5]), sucursal:c(r[6]), condicion:c(r[7]), hoja:'Monitores' };
+}
+function parseMoviles(r) {
+  // A=ID B=Tipo C=Marca D=Modelo J=Condición K=Responsable L=Depto M=Sucursal
+  return { id:c(r[0]), tipo:c(r[1])||'Teléfono', descripcion:`${c(r[2])} ${c(r[3])}`.trim(),
+    responsable:c(r[10]), departamento:c(r[11]), sucursal:c(r[12]), condicion:c(r[9]), hoja:'Móviles' };
+}
+function parseImpresoras(r) {
+  // A=ID B=Marca C=Modelo E=Responsable F=Depto G=Sucursal H=Condición
+  return { id:c(r[0]), tipo:'Impresora', descripcion:`${c(r[1])} ${c(r[2])}`.trim(),
+    responsable:c(r[4]), departamento:c(r[5]), sucursal:c(r[6]), condicion:c(r[7]), hoja:'Impresoras' };
+}
+function parseOtros(r) {
+  // A=ID B=Tipo C=Marca D=Modelo F=Responsable G=Depto H=Sucursal I=Condición
+  return { id:c(r[0]), tipo:c(r[1])||'Otro', descripcion:`${c(r[2])} ${c(r[3])}`.trim(),
+    responsable:c(r[5]), departamento:c(r[6]), sucursal:c(r[7]), condicion:c(r[8]), hoja:'Otros' };
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────────────
+function setStatus(state, msg) {
+  const dot = document.getElementById('sdot');
+  dot.className = 'status-dot' + (state==='ok'?' ok':state==='loading'?' loading':state==='error'?' error':'');
+  document.getElementById('status-msg').textContent = msg;
+}
+
+const TIPO_C={"Notebook":["#E6F1FB","#185FA5"],"Monitor":["#E1F5EE","#0F6E56"],"Teléfono":["#EEEDFE","#534AB7"],"Tablet":["#EEEDFE","#534AB7"],"Linea":["#F1EFE8","#5F5E5A"],"Impresora":["#FAEEDA","#854F0B"],"Backup":["#F1EFE8","#5F5E5A"],"ROUTER":["#FAEEDA","#854F0B"],"DVR":["#FCE4D6","#993C1D"],"POSNET":["#FAECE7","#712B13"]};
+function tStyle(t){const k=Object.keys(TIPO_C).find(k=>t.toLowerCase().includes(k.toLowerCase()));return TIPO_C[k]||["#F1EFE8","#5F5E5A"];}
+const AVC=["#B5D4F4","#9FE1CB","#CECBF6","#FAC775","#F4C0D1","#C0DD97","#F7C1C1","#5DCAA5"];
+function avC(n){let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%AVC.length;return AVC[h];}
+function ini(n){return n.split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();}
+function dot(c){const s=(c||'').toLowerCase();if(s.includes('nuevo')||s.includes('bueno')||s.includes('buena')||s.includes('uso'))return'#1D9E75';if(s.includes('mejorable')||s.includes('regular')||s.includes('posible')||s.includes('cambiar')||s.includes('escaneo')||s.includes('ausente'))return'#EF9F27';if(s.includes('intrab')||s.includes('arreglar')||s.includes('funciona')||s.includes('repuesto')||s.includes('teclado')||s.includes('malo'))return'#E24B4A';return'#D3D1C7';}
+
+let AF='Todos';
+function catOf(r){const t=(r.tipo||'').toLowerCase();if(['notebook','backup'].includes(t))return'Notebook';if(t==='monitor')return'Monitor';if(['teléfono','telefono','linea','tablet'].includes(t))return'Móvil';if(t==='impresora')return'Impresora';return'Otro';}
+
+function render(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const filtered=DATA.filter(r=>{
+    if(!r.id)return false;
+    if(AF!=='Todos'&&catOf(r)!==AF)return false;
+    if(!q)return true;
+    return[r.id,r.tipo,r.descripcion,r.responsable,r.departamento,r.sucursal].some(f=>(f||'').toLowerCase().includes(q));
+  });
+
+  const skip=['fuera de servicio','arreglar','back up','stock',''];
+  const assigned=filtered.filter(r=>r.responsable&&!skip.includes(r.responsable.toLowerCase())).length;
+  const people=[...new Set(filtered.map(r=>r.responsable).filter(r=>r&&r.trim()))].length;
+
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="n">${filtered.length}</div><div class="l">Activos</div></div>
+    <div class="stat"><div class="n">${assigned}</div><div class="l">Asignados</div></div>
+    <div class="stat"><div class="n">${filtered.length-assigned}</div><div class="l">Sin asignar</div></div>
+    <div class="stat"><div class="n">${people}</div><div class="l">Personas</div></div>`;
+
+  const byP={};
+  filtered.forEach(r=>{
+    const k=(r.responsable||'').trim()||'Sin asignar';
+    if(!byP[k])byP[k]={name:k,depto:r.departamento,items:[]};
+    byP[k].items.push(r);
+  });
+  const ppl=Object.values(byP).sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const pv=document.getElementById('people-view');
+  pv.innerHTML=ppl.length?ppl.map((p,i)=>{
+    const bg=avC(p.name);
+    const devs=p.items.map(r=>{
+      const[tbg,ttxt]=tStyle(r.tipo);
+      return`<div class="device-row"><span class="type-badge" style="background:${tbg};color:${ttxt}">${r.tipo||'?'}</span><span class="device-desc" title="${r.descripcion}">${r.descripcion||'(sin descripción)'}</span><span class="device-id">${r.id}</span><span class="cond-dot" style="background:${dot(r.condicion)}" title="${r.condicion||'—'}"></span><span class="cond-label">${r.condicion||'—'}</span></div>`;
+    }).join('');
+    return`<div class="person-card"><div class="person-header" onclick="tog(${i})"><div class="avatar" style="background:${bg}">${ini(p.name)}</div><div><div class="person-name">${p.name}</div><div class="person-sub">${p.depto||''}</div></div><span class="badge-count">${p.items.length} equipo${p.items.length!==1?'s':''}</span><span class="chevron" id="ch-${i}">▶</span></div><div class="device-list" id="dl-${i}">${devs}</div></div>`;
+  }).join(''):'<div class="empty">Sin resultados</div>';
+
+  document.getElementById('tbl-body').innerHTML=filtered.length
+    ?filtered.map(r=>`<tr><td style="font-family:monospace;font-size:12px;color:#888780">${r.id}</td><td>${r.tipo||'—'}</td><td title="${r.descripcion}">${r.descripcion||'—'}</td><td>${r.responsable||'—'}</td><td style="color:#888780">${r.departamento||'—'}</td><td style="color:#888780">${r.sucursal||'—'}</td><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dot(r.condicion)};margin-right:6px;vertical-align:middle"></span>${r.condicion||'—'}</td></tr>`).join('')
+    :'<tr><td colspan="7" class="empty">Sin resultados</td></tr>';
+}
+
+function tog(i){document.getElementById(`dl-${i}`).classList.toggle('open');document.getElementById(`ch-${i}`).classList.toggle('open');}
+
+// Filter buttons
+const fbts=document.getElementById('fbts');
+['Todos','Notebook','Monitor','Móvil','Impresora','Otro'].forEach(f=>{
+  const b=document.createElement('button');
+  b.className='fb'+(f==='Todos'?' active':'');
+  b.textContent=f;
+  b.onclick=()=>{AF=f;document.querySelectorAll('.fb').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();};
+  fbts.appendChild(b);
+});
+
+initMsal().catch(e=>setStatus("error","Error de inicialización: "+e.message));
+</script>
+</body>
+</html>
